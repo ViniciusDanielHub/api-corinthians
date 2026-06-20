@@ -41,6 +41,20 @@ enum Zone {
   RELEGATION
 }
 
+// Tipo de movimentação no elenco (entrada/saída do clube).
+// ARRIVAL    = contratação definitiva chegando
+// DEPARTURE  = saída definitiva (venda, fim de contrato, dispensa...)
+// LOAN_OUT   = jogador do clube emprestado para fora
+// LOAN_IN    = jogador chegando emprestado de outro clube
+// RETURN     = retorno de empréstimo (volta a vestir a camisa do clube)
+enum MovementType {
+  ARRIVAL
+  DEPARTURE
+  LOAN_OUT
+  LOAN_IN
+  RETURN
+}
+
 // ─── Time único (singleton — id fixo "main") ───────────────────
 model Team {
   id          String   @id @default("main")
@@ -183,6 +197,35 @@ model SquadMember {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  movements PlayerMovement[]
+
   @@index([categoryId])
   @@map("squad_members")
+}
+
+// ─── Movimentações de elenco (entradas e saídas do clube) ──────
+// Histórico de contratações, vendas, empréstimos e retornos.
+// Cada linha é um evento; o jogador pode ter várias ao longo do
+// tempo (ex: chega, é emprestado, volta, sai de novo).
+model PlayerMovement {
+  id            String       @id @default(uuid())
+  squadMemberId String
+  squadMember   SquadMember  @relation(fields: [squadMemberId], references: [id], onDelete: Cascade)
+
+  type MovementType
+  date DateTime
+
+  // Clube de origem (preenchido em ARRIVAL/LOAN_IN) ou
+  // clube de destino (preenchido em DEPARTURE/LOAN_OUT).
+  // Em RETURN normalmente fica nulo (o jogador volta pro próprio clube).
+  club String?
+
+  notes String? // ex: "Empréstimo até dez/2026", "Fim de contrato"
+
+  createdAt DateTime @default(now())
+
+  @@index([squadMemberId])
+  @@index([date])
+  @@index([type, date])
+  @@map("player_movements")
 }

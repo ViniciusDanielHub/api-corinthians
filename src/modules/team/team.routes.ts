@@ -16,10 +16,23 @@ export async function teamPublicRoutes(app: FastifyInstance): Promise<void> {
 }
 
 export async function teamAdminRoutes(app: FastifyInstance): Promise<void> {
+  // SEGURANÇA: antes, a proteção de auth era passada manualmente como
+  // preHandler só na rota PATCH ("preHandler: [requireApiKey, uploadLogo]"),
+  // diferente de TODOS os outros módulos admin (categories, competitions,
+  // opponents, matches, standings, squad), que usam
+  // app.addHook('preHandler', requireApiKey) no nível do plugin.
+  //
+  // Essa inconsistência é perigosa: qualquer rota nova adicionada a este
+  // arquivo no futuro (ex: DELETE /team, GET /team com dados sensíveis)
+  // ficaria SEM autenticação por padrão, bastando o autor esquecer de
+  // colar o preHandler manualmente. Usar addHook torna a proteção
+  // automática para qualquer rota deste plugin, igual aos demais módulos.
+  app.addHook('preHandler', requireApiKey);
+
   // PATCH /api/admin/team — multipart/form-data, campo de arquivo "logo"
   app.patch(
     '/team',
-    { preHandler: [requireApiKey, uploadLogo] },
+    { preHandler: [uploadLogo] },
     async (request, reply) => {
       const body = request.body as any;
       const uploadedFile = (request as any).uploadedFile as { path: string } | undefined;
