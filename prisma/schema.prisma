@@ -1,0 +1,188 @@
+// prisma/schema.prisma — API do Clube (isolada, time único)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum Modality {
+  FOOTBALL
+  FUTSAL
+  BASKETBALL
+}
+
+enum MatchStatus {
+  SCHEDULED
+  IN_PLAY
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+
+// Faixa de destaque na tabela (cor da barrinha lateral).
+// NONE = sem faixa (o front decide pela posição, se preferir).
+// As demais permitem forçar manualmente quando o critério não é
+// só "posição X até Y" (ex: vaga extra por outro torneio).
+enum Zone {
+  NONE
+  TITLE
+  LIBERTADORES
+  LIBERTADORES_PRELIMINARY
+  SULAMERICANA
+  RELEGATION
+}
+
+// ─── Time único (singleton — id fixo "main") ───────────────────
+model Team {
+  id          String   @id @default("main")
+  name        String
+  shortName   String?
+  logoUrl     String?
+  foundedYear Int?
+  stadium     String?
+  city        String?
+  website     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("team")
+}
+
+// ─── Categorias (Principal, Sub-20, Futsal, Basquete...) ───────
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  gender      Gender   @default(MALE)
+  modality    Modality @default(FOOTBALL)
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  competitions Competition[]
+  squadMembers SquadMember[]
+
+  @@map("categories")
+}
+
+// ─── Campeonatos (1 por categoria, pode ter vários por temporada) ──
+model Competition {
+  id         String   @id @default(uuid())
+  name       String
+  season     String
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  matches  Match[]
+  standing StandingEntry[]
+
+  @@index([categoryId])
+  @@unique([categoryId, name, season])
+  @@map("competitions")
+}
+
+// ─── Adversários (entidade reutilizável) ───────────────────────
+model Opponent {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  matches Match[]
+
+  @@map("opponents")
+}
+
+// ─── Partidas ───────────────────────────────────────────────────
+model Match {
+  id            String      @id @default(uuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  opponentId    String
+  opponent      Opponent    @relation(fields: [opponentId], references: [id], onDelete: Restrict)
+
+  date     DateTime
+  venue    String?
+  isHome   Boolean     @default(true)
+  status   MatchStatus @default(SCHEDULED)
+  homeScore Int?
+  awayScore Int?
+  round    String?     // ex: "Rodada 5", "Quartas de final"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([competitionId])
+  @@index([opponentId])
+  @@index([date])
+  @@index([status, date])
+  @@map("matches")
+}
+
+// ─── Tabela de classificação (digitada manualmente) ────────────
+model StandingEntry {
+  id            String      @id @default(uuid())
+  competitionId String
+  competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+
+  position      Int
+  teamName      String
+  logoUrl       String?
+  points        Int     @default(0)
+  played        Int     @default(0)
+  won           Int     @default(0)
+  drawn         Int     @default(0)
+  lost          Int     @default(0)
+  goalsFor      Int     @default(0)
+  goalsAgainst  Int     @default(0)
+  isOwnTeam     Boolean @default(false) // marca a linha do próprio clube
+
+  // "Últimas 5" — string simples separada por vírgula, do mais antigo
+  // pro mais recente. Valores aceitos: W (vitória), D (empate), L (derrota).
+  // Ex: "L,D,W,L,W"  →  primeiro ícone exibido = mais antigo
+  form String?
+
+  // Faixa de cor lateral (G4, rebaixamento etc). NONE = sem faixa.
+  zone Zone @default(NONE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([competitionId])
+  @@unique([competitionId, position])
+  @@map("standing_entries")
+}
+
+// ─── Elenco (por categoria) ─────────────────────────────────────
+model SquadMember {
+  id          String   @id @default(uuid())
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name        String
+  position    String?
+  shirtNumber Int?
+  photoUrl    String?
+  birthDate   DateTime?
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@map("squad_members")
+}
