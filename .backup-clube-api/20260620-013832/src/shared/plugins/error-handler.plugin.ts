@@ -13,24 +13,9 @@ export function registerErrorHandler(app: FastifyInstance): void {
         meta: process.env.NODE_ENV !== 'production' ? err.meta : undefined,
       });
     }
-
-    // Registro não encontrado (update/delete em id inexistente)
-    if (err.code === 'P2025') {
-      return reply.code(404).send({ error: 'Registro não encontrado.' });
+    if (err.code === 'P2025' || err.code === 'P2003') {
+      return reply.code(404).send({ error: 'Registro não encontrado ou referência inválida.' });
     }
-
-    // Violação de FK: ou a referência informada não existe (create/update),
-    // ou o registro está sendo usado em outro lugar e não pode ser deletado
-    // (ex: Opponent com onDelete: Restrict que já tem partidas vinculadas).
-    if (err.code === 'P2003') {
-      const isDelete = request.method === 'DELETE';
-      return reply.code(isDelete ? 409 : 422).send({
-        error: isDelete
-          ? 'Não é possível deletar: este registro está em uso por outro recurso (ex: partidas vinculadas).'
-          : 'Referência inválida: o registro relacionado informado não existe.',
-      });
-    }
-
     if (err.validation) {
       return reply.code(422).send({ error: 'Dados inválidos.', details: err.validation });
     }
