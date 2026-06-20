@@ -1,8 +1,6 @@
 // src/shared/services/clube-api/types/queries.ts
 //
-// Tipos dos parâmetros de query aceitos pelas rotas de leitura,
-// e dos formatos de resposta paginada (rotas /api/admin/* com
-// page/limit).
+// Tipos dos parâmetros de query e respostas paginadas do client.
 
 import type { MatchStatus, MovementType } from './entities';
 
@@ -47,7 +45,7 @@ export interface PaginatedResponse<T> {
   limit: number;
 }
 
-// ─── Respostas simples de mensagem (delete, etc.) ────────────
+// ─── Respostas simples ────────────────────────────────────────
 export interface MessageResponse {
   message: string;
 }

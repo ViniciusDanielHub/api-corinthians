@@ -1,28 +1,27 @@
 // src/shared/services/clube-api/index.ts
 //
-// Client HTTP da clube-api (projeto separado), totalmente tipado.
-// Cole esta pasta inteira dentro do sports-news-api e use nas
-// controllers do painel admin que vão exibir/cadastrar dados do clube.
+// Client HTTP totalmente tipado para consumir a clube-api a partir
+// do sports-news-api (server-to-server).
 //
-// Variáveis de ambiente necessárias no sports-news-api (.env):
-//   CLUBE_API_URL=http://localhost:3010   (ou a URL de produção)
+// Variáveis de ambiente necessárias no .env do sports-news-api:
+//   CLUBE_API_URL=http://localhost:3010
 //   CLUBE_API_KEY=<mesma chave configurada na clube-api>
 //
-// Estrutura:
-//   types/entities.ts   → shapes retornados pela API (Team, Match, etc.)
-//   types/payloads.ts   → shapes esperados nos POST/PATCH (admin)
+// Estrutura interna:
+//   types/entities.ts   → shapes retornados pela API
+//   types/payloads.ts   → shapes dos POST/PATCH (admin)
 //   types/queries.ts    → query params e respostas paginadas
 //   http.ts             → função request genérica + ClubeApiError
-//   public.routes.ts    → rotas públicas (sem auth)
-//   admin.routes.ts     → rotas /api/admin/* (com x-api-key)
+//   public.routes.ts    → rotas GET públicas
+//   admin.routes.ts     → rotas /api/admin/* (auth automática)
 
-import { clubeApiPublic } from './public.routes';
-import { clubeApiAdmin } from './admin.routes';
+import { clubeApiPublic } from '../clube-api/public.routes';
+import { clubeApiAdmin }  from '../clube-api/admin.routes';
 
 export const clubeApi = {
   ...clubeApiPublic,
   admin: clubeApiAdmin,
 };
 
-export { ClubeApiError } from './http';
-export * from './types';
+export { ClubeApiError } from '../clube-api/http';
+export * from '../clube-api/types';

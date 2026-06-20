@@ -1,20 +1,21 @@
-// src/shared/services/clube-api/index.ts
+// CONSUMIR-NO-SPORTS-NEWS-API/clube-api-client.ts
 //
-// Client HTTP minúsculo para a clube-api (projeto separado).
-// Cole este arquivo dentro do sports-news-api e use nas controllers
-// do painel admin que vão exibir/cadastrar dados do clube.
+// ATENÇÃO: este arquivo é apenas uma referência de uso rápido (legado).
+// Para o client totalmente tipado, copie a PASTA INTEIRA
+//   src/shared/services/clube-api/
+// para dentro do sports-news-api.
 //
 // Variáveis de ambiente necessárias no sports-news-api (.env):
-//   CLUBE_API_URL=http://localhost:3010   (ou a URL de produção)
+//   CLUBE_API_URL=http://localhost:3010
 //   CLUBE_API_KEY=<mesma chave configurada na clube-api>
 
 const BASE_URL = process.env.CLUBE_API_URL || 'http://localhost:3010';
-const API_KEY = process.env.CLUBE_API_KEY || '';
+const API_KEY  = process.env.CLUBE_API_KEY  || '';
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
-  auth?: boolean; // true = envia x-api-key (rotas /api/admin/*)
+  auth?: boolean;
 }
 
 class ClubeApiError extends Error {
@@ -26,7 +27,6 @@ class ClubeApiError extends Error {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, auth = false } = options;
-
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (auth) headers['x-api-key'] = API_KEY;
 
@@ -52,100 +52,68 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T;
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Leitura (rotas públicas — não precisam de auth)
-// ═══════════════════════════════════════════════════════════════
 export const clubeApi = {
-  team: {
-    get: () => request<any>('/api/team'),
-  },
-
-  categories: {
-    list: () => request<any[]>('/api/categories'),
-    getBySlug: (slug: string) => request<any>(`/api/categories/${slug}`),
-  },
-
-  competitions: {
-    list: (categorySlug?: string) =>
-      request<any[]>(`/api/competitions${categorySlug ? `?category=${categorySlug}` : ''}`),
-  },
-
-  opponents: {
-    list: () => request<any[]>('/api/opponents'),
-  },
-
+  // ── Leitura pública ──────────────────────────────────────────────────────
+  team:         { get: () => request<any>('/api/team') },
+  categories:   { list: () => request<any[]>('/api/categories'),
+                  getBySlug: (slug: string) => request<any>(`/api/categories/${slug}`) },
+  competitions: { list: (categorySlug?: string) =>
+                    request<any[]>(`/api/competitions${categorySlug ? `?category=${categorySlug}` : ''}`) },
+  opponents:    { list: () => request<any[]>('/api/opponents') },
   matches: {
-    list: (params?: { category?: string; status?: string; competitionId?: string; limit?: number }) => {
-      const qs = new URLSearchParams(params as any).toString();
-      return request<any[]>(`/api/matches${qs ? `?${qs}` : ''}`);
-    },
-    next: (params?: { category?: string; limit?: number }) => {
-      const qs = new URLSearchParams(params as any).toString();
-      return request<any[]>(`/api/matches/next${qs ? `?${qs}` : ''}`);
-    },
-    recent: (params?: { category?: string; limit?: number }) => {
-      const qs = new URLSearchParams(params as any).toString();
-      return request<any[]>(`/api/matches/recent${qs ? `?${qs}` : ''}`);
-    },
+    list:   (p?: any) => { const qs = new URLSearchParams(p).toString(); return request<any[]>(`/api/matches${qs ? `?${qs}` : ''}`); },
+    next:   (p?: any) => { const qs = new URLSearchParams(p).toString(); return request<any[]>(`/api/matches/next${qs ? `?${qs}` : ''}`); },
+    recent: (p?: any) => { const qs = new URLSearchParams(p).toString(); return request<any[]>(`/api/matches/recent${qs ? `?${qs}` : ''}`); },
+  },
+  standings: { get: (competitionId: string) => request<any[]>(`/api/standings/${competitionId}`) },
+  squad:     { list: (categorySlug: string) => request<any[]>(`/api/squad?category=${categorySlug}`) },
+  movements: {
+    recent:       (p?: any) => { const qs = new URLSearchParams(p).toString(); return request<any[]>(`/api/movements/recent${qs ? `?${qs}` : ''}`); },
+    listByPlayer: (squadMemberId: string) => request<any[]>(`/api/squad/${squadMemberId}/movements`),
   },
 
-  standings: {
-    get: (competitionId: string) => request<any[]>(`/api/standings/${competitionId}`),
-  },
-
-  squad: {
-    list: (categorySlug: string) => request<any[]>(`/api/squad?category=${categorySlug}`),
-  },
-
-  // ═══════════════════════════════════════════════════════════
-  // Escrita (rotas /api/admin/* — usadas pelo painel admin do
-  // sports-news-api; sempre passam x-api-key automaticamente)
-  // ═══════════════════════════════════════════════════════════
+  // ── Escrita admin (server-to-server, x-api-key automático) ───────────────
   admin: {
-    team: {
-      update: (data: any) => request<any>('/api/admin/team', { method: 'PATCH', body: data, auth: true }),
-    },
+    team:         { update: (d: any) => request<any>('/api/admin/team', { method: 'PATCH', body: d, auth: true }) },
     categories: {
-      list: () => request<any[]>('/api/admin/categories', { auth: true }),
-      create: (data: any) => request<any>('/api/admin/categories', { method: 'POST', body: data, auth: true }),
-      update: (id: string, data: any) =>
-        request<any>(`/api/admin/categories/${id}`, { method: 'PATCH', body: data, auth: true }),
-      delete: (id: string) => request<any>(`/api/admin/categories/${id}`, { method: 'DELETE', auth: true }),
+      list:   ()                   => request<any[]>('/api/admin/categories', { auth: true }),
+      create: (d: any)             => request<any>('/api/admin/categories', { method: 'POST', body: d, auth: true }),
+      update: (id: string, d: any) => request<any>(`/api/admin/categories/${id}`, { method: 'PATCH', body: d, auth: true }),
+      delete: (id: string)         => request<any>(`/api/admin/categories/${id}`, { method: 'DELETE', auth: true }),
     },
     competitions: {
-      list: () => request<any[]>('/api/admin/competitions', { auth: true }),
-      create: (data: any) => request<any>('/api/admin/competitions', { method: 'POST', body: data, auth: true }),
-      update: (id: string, data: any) =>
-        request<any>(`/api/admin/competitions/${id}`, { method: 'PATCH', body: data, auth: true }),
-      delete: (id: string) => request<any>(`/api/admin/competitions/${id}`, { method: 'DELETE', auth: true }),
+      list:   ()                   => request<any[]>('/api/admin/competitions', { auth: true }),
+      create: (d: any)             => request<any>('/api/admin/competitions', { method: 'POST', body: d, auth: true }),
+      update: (id: string, d: any) => request<any>(`/api/admin/competitions/${id}`, { method: 'PATCH', body: d, auth: true }),
+      delete: (id: string)         => request<any>(`/api/admin/competitions/${id}`, { method: 'DELETE', auth: true }),
     },
     opponents: {
-      create: (data: any) => request<any>('/api/admin/opponents', { method: 'POST', body: data, auth: true }),
-      update: (id: string, data: any) =>
-        request<any>(`/api/admin/opponents/${id}`, { method: 'PATCH', body: data, auth: true }),
-      delete: (id: string) => request<any>(`/api/admin/opponents/${id}`, { method: 'DELETE', auth: true }),
+      create: (d: any)             => request<any>('/api/admin/opponents', { method: 'POST', body: d, auth: true }),
+      update: (id: string, d: any) => request<any>(`/api/admin/opponents/${id}`, { method: 'PATCH', body: d, auth: true }),
+      delete: (id: string)         => request<any>(`/api/admin/opponents/${id}`, { method: 'DELETE', auth: true }),
     },
     matches: {
-      list: (page = 1, limit = 20) =>
-        request<any>(`/api/admin/matches?page=${page}&limit=${limit}`, { auth: true }),
-      create: (data: any) => request<any>('/api/admin/matches', { method: 'POST', body: data, auth: true }),
-      update: (id: string, data: any) =>
-        request<any>(`/api/admin/matches/${id}`, { method: 'PATCH', body: data, auth: true }),
-      delete: (id: string) => request<any>(`/api/admin/matches/${id}`, { method: 'DELETE', auth: true }),
+      list:   (page = 1, limit = 20) => request<any>(`/api/admin/matches?page=${page}&limit=${limit}`, { auth: true }),
+      create: (d: any)               => request<any>('/api/admin/matches', { method: 'POST', body: d, auth: true }),
+      update: (id: string, d: any)   => request<any>(`/api/admin/matches/${id}`, { method: 'PATCH', body: d, auth: true }),
+      delete: (id: string)           => request<any>(`/api/admin/matches/${id}`, { method: 'DELETE', auth: true }),
     },
     standings: {
-      upsertRow: (data: any) => request<any>('/api/admin/standings', { method: 'POST', body: data, auth: true }),
-      bulkReplace: (competitionId: string, rows: any[]) =>
-        request<any>(`/api/admin/standings/${competitionId}/bulk`, { method: 'PUT', body: rows, auth: true }),
-      deleteRow: (id: string) => request<any>(`/api/admin/standings/${id}`, { method: 'DELETE', auth: true }),
+      upsertRow:   (d: any)                         => request<any>('/api/admin/standings', { method: 'POST', body: d, auth: true }),
+      bulkReplace: (competitionId: string, rows: any[]) => request<any>(`/api/admin/standings/${competitionId}/bulk`, { method: 'PUT', body: rows, auth: true }),
+      deleteRow:   (id: string)                     => request<any>(`/api/admin/standings/${id}`, { method: 'DELETE', auth: true }),
     },
     squad: {
-      list: (categoryId?: string) =>
-        request<any[]>(`/api/admin/squad${categoryId ? `?categoryId=${categoryId}` : ''}`, { auth: true }),
-      create: (data: any) => request<any>('/api/admin/squad', { method: 'POST', body: data, auth: true }),
-      update: (id: string, data: any) =>
-        request<any>(`/api/admin/squad/${id}`, { method: 'PATCH', body: data, auth: true }),
-      delete: (id: string) => request<any>(`/api/admin/squad/${id}`, { method: 'DELETE', auth: true }),
+      list:   (categoryId?: string) => request<any[]>(`/api/admin/squad${categoryId ? `?categoryId=${categoryId}` : ''}`, { auth: true }),
+      create: (d: any)              => request<any>('/api/admin/squad', { method: 'POST', body: d, auth: true }),
+      update: (id: string, d: any)  => request<any>(`/api/admin/squad/${id}`, { method: 'PATCH', body: d, auth: true }),
+      delete: (id: string)          => request<any>(`/api/admin/squad/${id}`, { method: 'DELETE', auth: true }),
+    },
+    movements: {
+      list:   (p?: any)             => { const qs = new URLSearchParams(p).toString(); return request<any>(`/api/admin/movements${qs ? `?${qs}` : ''}`, { auth: true }); },
+      create: (d: any)              => request<any>('/api/admin/movements', { method: 'POST', body: d, auth: true }),
+      update: (id: string, d: any)  => request<any>(`/api/admin/movements/${id}`, { method: 'PATCH', body: d, auth: true }),
+      delete: (id: string)          => request<any>(`/api/admin/movements/${id}`, { method: 'DELETE', auth: true }),
     },
   },
 };
