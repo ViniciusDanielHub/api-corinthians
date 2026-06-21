@@ -203,6 +203,21 @@ model SquadMember {
   @@map("squad_members")
 }
 
+// ─── Clubes envolvidos em transferências (origem/destino) ──────
+// Entidade reutilizável: o mesmo clube aparece em várias
+// movimentações sem precisar recadastrar nome/logo.
+model TransferClub {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements PlayerMovement[]
+
+  @@map("transfer_clubs")
+}
+
 // ─── Movimentações de elenco (entradas e saídas do clube) ──────
 // Histórico de contratações, vendas, empréstimos e retornos.
 // Cada linha é um evento; o jogador pode ter várias ao longo do
@@ -218,7 +233,8 @@ model PlayerMovement {
   // Clube de origem (preenchido em ARRIVAL/LOAN_IN) ou
   // clube de destino (preenchido em DEPARTURE/LOAN_OUT).
   // Em RETURN normalmente fica nulo (o jogador volta pro próprio clube).
-  club String?
+  clubId String?
+  club   TransferClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
 
   notes String? // ex: "Empréstimo até dez/2026", "Fim de contrato"
 
@@ -227,5 +243,6 @@ model PlayerMovement {
   @@index([squadMemberId])
   @@index([date])
   @@index([type, date])
+  @@index([clubId])
   @@map("player_movements")
 }

@@ -17,6 +17,9 @@ import { standingsPublicRoutes, standingsAdminRoutes } from './modules/standings
 import { squadPublicRoutes, squadAdminRoutes } from './modules/squad/squad.routes';
 import { movementsPublicRoutes, movementsAdminRoutes } from './modules/movements/movements.routes';
 
+import { transferClubsPublicRoutes, transferClubsAdminRoutes } from './modules/transfer-clubs/transfer-clubs.routes';
+
+
 export async function buildApp() {
   const app = Fastify({
     logger: {
@@ -62,6 +65,8 @@ export async function buildApp() {
   await app.register(standingsAdminRoutes,    { prefix: '/api/admin' });
   await app.register(squadAdminRoutes,        { prefix: '/api/admin' });
   await app.register(movementsAdminRoutes,    { prefix: '/api/admin' });
+  await app.register(transferClubsPublicRoutes, { prefix: '/api' });
+  await app.register(transferClubsAdminRoutes, { prefix: '/api/admin' });
 
   // ── Handlers globais de erro ───────────────────────────────────────────────
   registerErrorHandler(app);

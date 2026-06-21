@@ -130,3 +130,25 @@ export interface UpdatePlayerMovementPayload {
   club?: string;
   notes?: string;
 }
+
+export interface CreateTransferClubPayload {
+  name: string;
+}
+export interface UpdateTransferClubPayload {
+  name?: string;
+}
+
+export interface CreatePlayerMovementPayload {
+  squadMemberId: string;
+  type: MovementType;
+  date: string;
+  clubId?: string;
+  notes?: string;
+}
+
+export interface UpdatePlayerMovementPayload {
+  type?: MovementType;
+  date?: string;
+  clubId?: string | null;
+  notes?: string;
+}

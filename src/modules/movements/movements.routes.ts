@@ -15,6 +15,7 @@ const movementInclude = {
       category: { select: { id: true, name: true, slug: true } },
     },
   },
+  club: { select: { id: true, name: true, logoUrl: true } }, // clube externo (origem ou destino, depende do type)
 } as const;
 
 // ── Rotas públicas ─────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export async function movementsAdminRoutes(app: FastifyInstance): Promise<void> 
   /**
    * POST /api/admin/movements
    * Registra uma movimentação (contratação, venda, empréstimo ou retorno).
+   * clubId é opcional — fica nulo em RETURN (jogador só voltou pro próprio clube).
    */
   app.post('/movements', async (request, reply) => {
     const body = request.body as any;
@@ -117,7 +119,7 @@ export async function movementsAdminRoutes(app: FastifyInstance): Promise<void> 
         squadMemberId: body.squadMemberId,
         type: body.type as MovementType,
         date: new Date(body.date),
-        club: body.club ?? null,
+        clubId: body.clubId ?? null,
         notes: body.notes ?? null,
       },
       include: movementInclude,
@@ -146,7 +148,7 @@ export async function movementsAdminRoutes(app: FastifyInstance): Promise<void> 
       data: {
         ...(body.type && { type: body.type as MovementType }),
         ...(body.date && { date: new Date(body.date) }),
-        ...(body.club !== undefined && { club: body.club }),
+        ...(body.clubId !== undefined && { clubId: body.clubId }),
         ...(body.notes !== undefined && { notes: body.notes }),
       },
       include: movementInclude,

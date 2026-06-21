@@ -13,6 +13,7 @@ import type {
   SquadMember,
   PlayerMovement,
   PlayerMovementWithSquadMember,
+  TransferClub,
 } from './types/entities';
 import type {
   ListMatchesParams,
@@ -59,7 +60,6 @@ export const clubeApiPublic = {
     list: (categorySlug: string) =>
       request<SquadMember[]>(`/api/squad?category=${categorySlug}`),
   },
-
   // Movimentações de elenco (entradas e saídas do clube)
   movements: {
     // Histórico de um jogador específico
@@ -69,4 +69,9 @@ export const clubeApiPublic = {
     recent: (params?: RecentMovementsParams) =>
       request<PlayerMovementWithSquadMember[]>(`/api/movements/recent${buildQueryString(params)}`),
   },
+
+  transferClubs: {
+    list: () => request<TransferClub[]>('/api/transfer-clubs'),
+  },
+
 };

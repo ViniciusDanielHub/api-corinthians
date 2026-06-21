@@ -14,6 +14,7 @@ import type {
   StandingEntryWithGoalDifference,
   SquadMember,
   PlayerMovementWithSquadMember,
+  TransferClub,
 } from './types/entities';
 import type {
   UpdateTeamPayload,
@@ -31,6 +32,8 @@ import type {
   UpdateSquadMemberPayload,
   CreatePlayerMovementPayload,
   UpdatePlayerMovementPayload,
+  UpdateTransferClubPayload,
+  CreateTransferClubPayload,
 } from './types/payloads';
 import type {
   ListAdminMatchesParams,
@@ -172,5 +175,21 @@ export const clubeApiAdmin = {
       request<MessageResponse>(`/api/admin/movements/${id}`, {
         method: 'DELETE', auth: true,
       }),
+
+    transferClubs: {
+      list: () => request<TransferClub[]>('/api/admin/transfer-clubs', { auth: true }),
+      create: (data: CreateTransferClubPayload) =>
+        request<TransferClub, CreateTransferClubPayload>('/api/admin/transfer-clubs', {
+          method: 'POST', body: data, auth: true,
+        }),
+      update: (id: string, data: UpdateTransferClubPayload) =>
+        request<TransferClub, UpdateTransferClubPayload>(`/api/admin/transfer-clubs/${id}`, {
+          method: 'PATCH', body: data, auth: true,
+        }),
+      delete: (id: string) =>
+        request<MessageResponse>(`/api/admin/transfer-clubs/${id}`, {
+          method: 'DELETE', auth: true,
+        }),
+    },
   },
 };

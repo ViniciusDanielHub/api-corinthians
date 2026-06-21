@@ -4,8 +4,8 @@
 // prisma/schema.prisma. Mantenha sincronizado se o schema mudar.
 
 // ─── Enums ────────────────────────────────────────────────────
-export type Gender     = 'MALE' | 'FEMALE';
-export type Modality   = 'FOOTBALL' | 'FUTSAL' | 'BASKETBALL';
+export type Gender = 'MALE' | 'FEMALE';
+export type Modality = 'FOOTBALL' | 'FUTSAL' | 'BASKETBALL';
 export type MatchStatus = 'SCHEDULED' | 'IN_PLAY' | 'FINISHED' | 'POSTPONED' | 'CANCELLED';
 export type Zone =
   | 'NONE'
@@ -157,17 +157,35 @@ export interface SquadMemberSummary {
   };
 }
 
+// ─── Clube de transferência (entidade reutilizável) ───────────
+// Representa o "outro lado" de uma movimentação de elenco —
+// o clube de onde o jogador veio ou pra onde ele foi.
+export interface TransferClub {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransferClubSummary {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+}
+
 // ─── Movimentação de elenco ───────────────────────────────────
 export interface PlayerMovement {
   id: string;
   squadMemberId: string;
   type: MovementType;
   date: string;
-  club: string | null;
+  clubId: string | null;
   notes: string | null;
   createdAt: string;
 }
 
 export interface PlayerMovementWithSquadMember extends PlayerMovement {
   squadMember: SquadMemberSummary;
+  club: TransferClubSummary | null; // null em RETURN
 }
