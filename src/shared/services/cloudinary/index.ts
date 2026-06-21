@@ -8,14 +8,15 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export type UploadFolder = 'logos' | 'opponents' | 'players';
+export type UploadFolder = 'logos' | 'opponents' | 'players' | 'transferClubs';
+
 
 const TRANSFORMATIONS: Record<UploadFolder, object[]> = {
-  // Logos costumam ser quadrados, com fundo transparente (PNG) —
-  // só limita o tamanho máximo, sem cortar (crop: 'limit' não distorce).
   logos: [{ width: 300, height: 300, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
   opponents: [{ width: 300, height: 300, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
   players: [{ width: 400, height: 400, crop: 'fill', gravity: 'face', quality: 'auto', fetch_format: 'auto' }],
+  // Logos de clubes de transferência seguem o mesmo padrão de "logos"/"opponents"
+  transferClubs: [{ width: 300, height: 300, crop: 'limit', quality: 'auto', fetch_format: 'auto' }],
 };
 
 // ─── Extrai o public_id do Cloudinary a partir da URL ─────────

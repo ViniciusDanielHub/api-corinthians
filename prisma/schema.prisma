@@ -73,15 +73,15 @@ model Team {
 
 // ─── Categorias (Principal, Sub-20, Futsal, Basquete...) ───────
 model Category {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  slug        String   @unique
-  gender      Gender   @default(MALE)
-  modality    Modality @default(FOOTBALL)
-  isActive    Boolean  @default(true)
-  order       Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  gender    Gender   @default(MALE)
+  modality  Modality @default(FOOTBALL)
+  isActive  Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   competitions Competition[]
   squadMembers SquadMember[]
@@ -129,13 +129,13 @@ model Match {
   opponentId    String
   opponent      Opponent    @relation(fields: [opponentId], references: [id], onDelete: Restrict)
 
-  date     DateTime
-  venue    String?
-  isHome   Boolean     @default(true)
-  status   MatchStatus @default(SCHEDULED)
+  date      DateTime
+  venue     String?
+  isHome    Boolean     @default(true)
+  status    MatchStatus @default(SCHEDULED)
   homeScore Int?
   awayScore Int?
-  round    String?     // ex: "Rodada 5", "Quartas de final"
+  round     String?     // ex: "Rodada 5", "Quartas de final"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -153,17 +153,17 @@ model StandingEntry {
   competitionId String
   competition   Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
 
-  position      Int
-  teamName      String
-  logoUrl       String?
-  points        Int     @default(0)
-  played        Int     @default(0)
-  won           Int     @default(0)
-  drawn         Int     @default(0)
-  lost          Int     @default(0)
-  goalsFor      Int     @default(0)
-  goalsAgainst  Int     @default(0)
-  isOwnTeam     Boolean @default(false) // marca a linha do próprio clube
+  position     Int
+  teamName     String
+  logoUrl      String?
+  points       Int     @default(0)
+  played       Int     @default(0)
+  won          Int     @default(0)
+  drawn        Int     @default(0)
+  lost         Int     @default(0)
+  goalsFor     Int     @default(0)
+  goalsAgainst Int     @default(0)
+  isOwnTeam    Boolean @default(false) // marca a linha do próprio clube
 
   // "Últimas 5" — string simples separada por vírgula, do mais antigo
   // pro mais recente. Valores aceitos: W (vitória), D (empate), L (derrota).
@@ -183,9 +183,9 @@ model StandingEntry {
 
 // ─── Elenco (por categoria) ─────────────────────────────────────
 model SquadMember {
-  id          String   @id @default(uuid())
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   name        String
   position    String?
@@ -223,9 +223,9 @@ model TransferClub {
 // Cada linha é um evento; o jogador pode ter várias ao longo do
 // tempo (ex: chega, é emprestado, volta, sai de novo).
 model PlayerMovement {
-  id            String       @id @default(uuid())
+  id            String      @id @default(uuid())
   squadMemberId String
-  squadMember   SquadMember  @relation(fields: [squadMemberId], references: [id], onDelete: Cascade)
+  squadMember   SquadMember @relation(fields: [squadMemberId], references: [id], onDelete: Cascade)
 
   type MovementType
   date DateTime
@@ -236,6 +236,16 @@ model PlayerMovement {
   clubId String?
   club   TransferClub? @relation(fields: [clubId], references: [id], onDelete: SetNull)
 
+  // ── Valor financeiro da movimentação ──────────────────────────
+  // Guardado em CENTAVOS (BigInt) para evitar erro de arredondamento
+  // de Float. Sempre um valor positivo — o sentido do fluxo de caixa
+  // é definido pelo `type`:
+  //   ARRIVAL / LOAN_IN   → saída de caixa  (o clube pagou/paga)
+  //   DEPARTURE / LOAN_OUT → entrada de caixa (o clube recebeu/recebe)
+  //   RETURN              → geralmente null (não há transação)
+  valueCents BigInt?
+  currency   String? @default("BRL")
+
   notes String? // ex: "Empréstimo até dez/2026", "Fim de contrato"
 
   createdAt DateTime @default(now())
@@ -244,5 +254,6 @@ model PlayerMovement {
   @@index([date])
   @@index([type, date])
   @@index([clubId])
+  @@index([type, date, valueCents])
   @@map("player_movements")
 }

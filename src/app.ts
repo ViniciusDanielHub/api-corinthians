@@ -18,6 +18,7 @@ import { squadPublicRoutes, squadAdminRoutes } from './modules/squad/squad.route
 import { movementsPublicRoutes, movementsAdminRoutes } from './modules/movements/movements.routes';
 
 import { transferClubsPublicRoutes, transferClubsAdminRoutes } from './modules/transfer-clubs/transfer-clubs.routes';
+import { financeAdminRoutes } from './modules/finance/finance.routes';
 
 
 export async function buildApp() {
@@ -67,6 +68,7 @@ export async function buildApp() {
   await app.register(movementsAdminRoutes,    { prefix: '/api/admin' });
   await app.register(transferClubsPublicRoutes, { prefix: '/api' });
   await app.register(transferClubsAdminRoutes, { prefix: '/api/admin' });
+  await app.register(financeAdminRoutes, { prefix: '/api/admin' });
 
   // ── Handlers globais de erro ───────────────────────────────────────────────
   registerErrorHandler(app);
