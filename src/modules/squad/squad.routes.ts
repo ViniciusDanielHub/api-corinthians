@@ -4,23 +4,50 @@ import { prisma } from '../../shared/database/prisma';
 import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { createUploadHandler } from '../../shared/plugins/upload.plugin';
 import { deleteImageSafe } from '../../shared/services/cloudinary';
+import { Validator } from '../../shared/validation';
 
 const uploadPlayerPhoto = createUploadHandler('players');
 
+const VALID_POSITIONS = [
+  'Goleiro', 'Lateral Direito', 'Lateral Esquerdo', 'Zagueiro',
+  'Volante', 'Meia', 'Meia-atacante', 'Ponta Direita', 'Ponta Esquerda',
+  'Centroavante', 'Atacante',
+] as const;
+
 export async function squadPublicRoutes(app: FastifyInstance): Promise<void> {
-  // GET /api/squad?category=sub-20  (slug da categoria)
+  // GET /api/squad?category=sub-20
   app.get('/squad', async (request, reply) => {
     const { category } = request.query as { category?: string };
 
-    if (!category) {
-      return reply.code(422).send({ error: 'O parâmetro "category" (slug) é obrigatório.' });
+    if (!category || category.trim() === '') {
+      return reply.code(422).send({
+        error: 'O parâmetro "category" (slug da categoria) é obrigatório.',
+        hint: 'Use GET /api/categories para listar as categorias e seus slugs.',
+        example: '/api/squad?category=principal',
+      });
+    }
+
+    // Verifica se a categoria existe para dar erro descritivo
+    const categoryRecord = await prisma.category.findUnique({
+      where: { slug: category },
+      select: { id: true, name: true, isActive: true },
+    });
+
+    if (!categoryRecord) {
+      return reply.code(404).send({
+        error: `Categoria com slug "${category}" não encontrada.`,
+        hint: 'Use GET /api/categories para listar as categorias disponíveis.',
+      });
+    }
+
+    if (!categoryRecord.isActive) {
+      return reply.code(404).send({
+        error: `A categoria "${categoryRecord.name}" está inativa.`,
+      });
     }
 
     const players = await prisma.squadMember.findMany({
-      where: {
-        isActive: true,
-        category: { slug: category },
-      },
+      where: { isActive: true, category: { slug: category } },
       orderBy: [{ shirtNumber: 'asc' }, { name: 'asc' }],
     });
     return reply.send(players);
@@ -30,7 +57,7 @@ export async function squadPublicRoutes(app: FastifyInstance): Promise<void> {
 export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireAdminAuth);
 
-  // GET /api/admin/squad?categoryId=...  — inclui inativos
+  // GET /api/admin/squad?categoryId=... — inclui inativos
   app.get('/squad', async (request, reply) => {
     const { categoryId } = request.query as { categoryId?: string };
     const players = await prisma.squadMember.findMany({
@@ -40,26 +67,73 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(players);
   });
 
-  // POST /api/admin/squad — multipart/form-data: campos + arquivo "photo"
+  // POST /api/admin/squad
   app.post('/squad', { preHandler: [uploadPlayerPhoto] }, async (request, reply) => {
     const body = request.body as any;
     const uploadedFile = (request as any).uploadedFile as { path: string } | undefined;
 
-    if (!body.categoryId || !body.name) {
-      return reply.code(422).send({ error: 'Campos obrigatórios: categoryId, name.' });
+    new Validator()
+      .required('categoryId', body?.categoryId, 'categoria')
+      .required('name', body?.name, 'nome')
+      .string('name', body?.name, { min: 2, max: 100, label: 'nome' })
+      .string('position', body?.position, { max: 60, label: 'posição' })
+      .integer('shirtNumber', body?.shirtNumber, { min: 1, max: 99, label: 'número da camisa' })
+      .isoDate('birthDate', body?.birthDate, 'data de nascimento')
+      .throw();
+
+    // Verifica se a categoria existe
+    const category = await prisma.category.findUnique({ where: { id: body.categoryId } });
+    if (!category) {
+      return reply.code(422).send({
+        error: `Categoria com ID "${body.categoryId}" não encontrada.`,
+        field: 'categoryId',
+        hint: 'Use GET /api/admin/categories para listar as categorias.',
+      });
+    }
+
+    // Avisa sobre número de camisa duplicado na mesma categoria (não bloqueia)
+    const warnings: string[] = [];
+    if (body.shirtNumber !== undefined) {
+      const shirtConflict = await prisma.squadMember.findFirst({
+        where: {
+          categoryId: body.categoryId,
+          shirtNumber: Number(body.shirtNumber),
+          isActive: true,
+        },
+        select: { id: true, name: true },
+      });
+      if (shirtConflict) {
+        warnings.push(
+          `O número de camisa ${body.shirtNumber} já está em uso por "${shirtConflict.name}" nesta categoria.`,
+        );
+      }
+    }
+
+    // Valida data de nascimento razoável (entre 1940 e hoje)
+    if (body.birthDate) {
+      const birthDate = new Date(body.birthDate);
+      const minYear = 1940;
+      const maxDate = new Date();
+      if (birthDate.getFullYear() < minYear || birthDate > maxDate) {
+        return reply.code(422).send({
+          error: `Data de nascimento inválida. Deve estar entre ${minYear} e hoje.`,
+          field: 'birthDate',
+          received: body.birthDate,
+        });
+      }
     }
 
     const player = await prisma.squadMember.create({
       data: {
         categoryId: body.categoryId,
         name: body.name.trim(),
-        position: body.position,
-        shirtNumber: body.shirtNumber !== undefined ? Number(body.shirtNumber) : undefined,
-        photoUrl: uploadedFile?.path,
-        birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
+        position: body.position?.trim() ?? null,
+        shirtNumber: body.shirtNumber !== undefined ? Number(body.shirtNumber) : null,
+        photoUrl: uploadedFile?.path ?? null,
+        birthDate: body.birthDate ? new Date(body.birthDate) : null,
       },
     });
-    return reply.code(201).send(player);
+    return reply.code(201).send(warnings.length > 0 ? { ...player, warnings } : player);
   });
 
   // PATCH /api/admin/squad/:id
@@ -67,6 +141,32 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const body = request.body as any;
     const uploadedFile = (request as any).uploadedFile as { path: string } | undefined;
+
+    const hasFields = body && Object.keys(body).length > 0;
+    if (!hasFields && !uploadedFile) {
+      return reply.code(422).send({
+        error: 'Nenhum campo enviado para atualização.',
+        hint: 'Envie ao menos um campo: name, position, shirtNumber, birthDate ou isActive.',
+      });
+    }
+
+    new Validator()
+      .string('name', body?.name, { min: 2, max: 100, label: 'nome' })
+      .string('position', body?.position, { max: 60, label: 'posição' })
+      .integer('shirtNumber', body?.shirtNumber, { min: 1, max: 99, label: 'número da camisa' })
+      .isoDate('birthDate', body?.birthDate, 'data de nascimento')
+      .boolean('isActive', body?.isActive, 'ativo')
+      .throw();
+
+    if (body?.birthDate) {
+      const birthDate = new Date(body.birthDate);
+      if (birthDate.getFullYear() < 1940 || birthDate > new Date()) {
+        return reply.code(422).send({
+          error: 'Data de nascimento inválida. Deve estar entre 1940 e hoje.',
+          field: 'birthDate',
+        });
+      }
+    }
 
     if (uploadedFile) {
       const existing = await prisma.squadMember.findUnique({ where: { id } });
@@ -76,16 +176,16 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
     const player = await prisma.squadMember.update({
       where: { id },
       data: {
-        ...(body.name && { name: body.name.trim() }),
-        ...(body.position !== undefined && { position: body.position }),
-        ...(body.shirtNumber !== undefined && {
+        ...(body?.name && { name: body.name.trim() }),
+        ...(body?.position !== undefined && { position: body.position?.trim() ?? null }),
+        ...(body?.shirtNumber !== undefined && {
           shirtNumber: body.shirtNumber === null ? null : Number(body.shirtNumber),
         }),
         ...(uploadedFile && { photoUrl: uploadedFile.path }),
-        ...(body.birthDate !== undefined && {
+        ...(body?.birthDate !== undefined && {
           birthDate: body.birthDate ? new Date(body.birthDate) : null,
         }),
-        ...(body.isActive !== undefined && { isActive: Boolean(body.isActive) }),
+        ...(body?.isActive !== undefined && { isActive: Boolean(body.isActive) }),
       },
     });
     return reply.send(player);
@@ -94,9 +194,20 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
   // DELETE /api/admin/squad/:id
   app.delete('/squad/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+
+    // Avisa sobre movimentações vinculadas
+    const movementsCount = await prisma.playerMovement.count({ where: { squadMemberId: id } });
+    if (movementsCount > 0) {
+      return reply.code(409).send({
+        error: 'Não é possível deletar este jogador pois ele possui movimentações registradas.',
+        dependents: { movements: movementsCount },
+        hint: 'Desative o jogador (isActive: false) em vez de deletar para preservar o histórico.',
+      });
+    }
+
     const player = await prisma.squadMember.findUnique({ where: { id } });
     if (player?.photoUrl) await deleteImageSafe(player.photoUrl);
     await prisma.squadMember.delete({ where: { id } });
-    return reply.send({ message: 'Jogador deletado.' });
+    return reply.send({ message: 'Jogador deletado com sucesso.' });
   });
 }

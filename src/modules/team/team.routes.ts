@@ -4,6 +4,7 @@ import { prisma } from '../../shared/database/prisma';
 import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { createUploadHandler } from '../../shared/plugins/upload.plugin';
 import { deleteImageSafe } from '../../shared/services/cloudinary';
+import { Validator } from '../../shared/validation';
 
 const uploadLogo = createUploadHandler('logos');
 
@@ -11,31 +12,43 @@ export async function teamPublicRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/team
   app.get('/team', async (_req, reply) => {
     const team = await prisma.team.findUnique({ where: { id: 'main' } });
+    if (!team) {
+      return reply.code(404).send({
+        error: 'Dados do time ainda não foram configurados.',
+        hint: 'Use PATCH /api/admin/team para configurar as informações do clube.',
+      });
+    }
     return reply.send(team);
   });
 }
 
 export async function teamAdminRoutes(app: FastifyInstance): Promise<void> {
-  // SEGURANÇA: antes, a proteção de auth era passada manualmente como
-  // preHandler só na rota PATCH ("preHandler: [requireApiKey, uploadLogo]"),
-  // diferente de TODOS os outros módulos admin (categories, competitions,
-  // opponents, matches, standings, squad), que usam
-  // app.addHook('preHandler', requireApiKey) no nível do plugin.
-  //
-  // Essa inconsistência é perigosa: qualquer rota nova adicionada a este
-  // arquivo no futuro (ex: DELETE /team, GET /team com dados sensíveis)
-  // ficaria SEM autenticação por padrão, bastando o autor esquecer de
-  // colar o preHandler manualmente. Usar addHook torna a proteção
-  // automática para qualquer rota deste plugin, igual aos demais módulos.
   app.addHook('preHandler', requireAdminAuth);
 
-  // PATCH /api/admin/team — multipart/form-data, campo de arquivo "logo"
+  // PATCH /api/admin/team
   app.patch(
     '/team',
     { preHandler: [uploadLogo] },
     async (request, reply) => {
       const body = request.body as any;
       const uploadedFile = (request as any).uploadedFile as { path: string } | undefined;
+
+      const hasFields = body && Object.keys(body).length > 0;
+      if (!hasFields && !uploadedFile) {
+        return reply.code(422).send({
+          error: 'Nenhum campo enviado para atualização.',
+          hint: 'Envie ao menos um campo: name, shortName, foundedYear, stadium, city, website, ou um arquivo de logo.',
+        });
+      }
+
+      new Validator()
+        .string('name', body?.name, { min: 2, max: 120, label: 'nome do clube' })
+        .string('shortName', body?.shortName, { max: 20, label: 'nome abreviado' })
+        .year('foundedYear', body?.foundedYear, 'ano de fundação')
+        .string('stadium', body?.stadium, { max: 120, label: 'estádio' })
+        .string('city', body?.city, { max: 80, label: 'cidade' })
+        .url('website', body?.website, 'site oficial')
+        .throw();
 
       if (uploadedFile) {
         const existing = await prisma.team.findUnique({ where: { id: 'main' } });
@@ -45,23 +58,25 @@ export async function teamAdminRoutes(app: FastifyInstance): Promise<void> {
       const team = await prisma.team.upsert({
         where: { id: 'main' },
         update: {
-          name: body.name,
-          shortName: body.shortName,
+          ...(body?.name && { name: body.name.trim() }),
+          ...(body?.shortName !== undefined && { shortName: body.shortName?.trim() ?? null }),
           ...(uploadedFile && { logoUrl: uploadedFile.path }),
-          foundedYear: body.foundedYear ? Number(body.foundedYear) : undefined,
-          stadium: body.stadium,
-          city: body.city,
-          website: body.website,
+          ...(body?.foundedYear !== undefined && {
+            foundedYear: body.foundedYear ? Number(body.foundedYear) : null,
+          }),
+          ...(body?.stadium !== undefined && { stadium: body.stadium?.trim() ?? null }),
+          ...(body?.city !== undefined && { city: body.city?.trim() ?? null }),
+          ...(body?.website !== undefined && { website: body.website?.trim() ?? null }),
         },
         create: {
           id: 'main',
-          name: body.name ?? 'Meu Clube',
-          shortName: body.shortName,
-          logoUrl: uploadedFile?.path,
-          foundedYear: body.foundedYear ? Number(body.foundedYear) : undefined,
-          stadium: body.stadium,
-          city: body.city,
-          website: body.website,
+          name: body?.name?.trim() ?? 'Meu Clube',
+          shortName: body?.shortName?.trim() ?? null,
+          logoUrl: uploadedFile?.path ?? null,
+          foundedYear: body?.foundedYear ? Number(body.foundedYear) : null,
+          stadium: body?.stadium?.trim() ?? null,
+          city: body?.city?.trim() ?? null,
+          website: body?.website?.trim() ?? null,
         },
       });
       return reply.send(team);
