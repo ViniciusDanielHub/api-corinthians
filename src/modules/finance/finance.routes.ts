@@ -1,87 +1,87 @@
 import type { FastifyInstance } from 'fastify';
-import { prisma } from '../../shared/database/prisma';
 import { requireApiKey } from '../../shared/plugins/api-key.plugin';
-
-const INCOME_TYPES = ['DEPARTURE', 'LOAN_OUT'] as const; // entrada de caixa
-const EXPENSE_TYPES = ['ARRIVAL', 'LOAN_IN'] as const;   // saída de caixa
-
-function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function monthsAgo(n: number) { const d = new Date(); d.setMonth(d.getMonth() - n); return startOfMonth(d); }
-
-async function summarize(from: Date, to: Date) {
-  const movements = await prisma.playerMovement.findMany({
-    where: { date: { gte: from, lte: to }, valueCents: { not: null } },
-    include: {
-      squadMember: { select: { id: true, name: true, photoUrl: true } },
-      club: { select: { id: true, name: true, logoUrl: true } },
-    },
-    orderBy: { date: 'desc' },
-  });
-
-  let incomeCents = 0n, expenseCents = 0n;
-  let biggestSale: typeof movements[number] | null = null;
-  let biggestPurchase: typeof movements[number] | null = null;
-
-  for (const m of movements) {
-    const v = m.valueCents ?? 0n;
-    if ((INCOME_TYPES as readonly string[]).includes(m.type)) {
-      incomeCents += v;
-      if (!biggestSale || v > (biggestSale.valueCents ?? 0n)) biggestSale = m;
-    } else if ((EXPENSE_TYPES as readonly string[]).includes(m.type)) {
-      expenseCents += v;
-      if (!biggestPurchase || v > (biggestPurchase.valueCents ?? 0n)) biggestPurchase = m;
-    }
-  }
-
-  return {
-    period: { from, to },
-    incomeCents: incomeCents.toString(),
-    expenseCents: expenseCents.toString(),
-    balanceCents: (incomeCents - expenseCents).toString(),
-    movementsCount: movements.length,
-    biggestSale: biggestSale && {
-      player: biggestSale.squadMember.name,
-      club: biggestSale.club?.name ?? null,
-      valueCents: biggestSale.valueCents!.toString(),
-      date: biggestSale.date,
-      type: biggestSale.type,
-    },
-    biggestPurchase: biggestPurchase && {
-      player: biggestPurchase.squadMember.name,
-      club: biggestPurchase.club?.name ?? null,
-      valueCents: biggestPurchase.valueCents!.toString(),
-      date: biggestPurchase.date,
-      type: biggestPurchase.type,
-    },
-  };
-}
+import { monthsAgo, pctChange } from './finance.helpers';
+import { balanceByCategory, clubRanking, monthlyEvolution, monthRange, summarize } from './finance.service';
 
 export async function financeAdminRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', requireApiKey);
 
-  // GET /api/admin/finance/month?month=2026-06
+  // GET /api/admin/finance/month?month=2026-06&currency=BRL
   app.get('/finance/month', async (request, reply) => {
-    const { month } = request.query as { month?: string };
+    const { month, currency } = request.query as { month?: string; currency?: string };
     const ref = month ? new Date(`${month}-01T00:00:00`) : new Date();
-    const from = startOfMonth(ref);
-    const to = new Date(from.getFullYear(), from.getMonth() + 1, 0, 23, 59, 59);
-    return reply.send(await summarize(from, to));
+    const { from, to } = monthRange(ref);
+    return reply.send(await summarize(from, to, currency));
   });
 
-  // GET /api/admin/finance/last-6-months
-  app.get('/finance/last-6-months', async (_req, reply) => {
-    return reply.send(await summarize(monthsAgo(6), new Date()));
+  // GET /api/admin/finance/last-6-months?currency=BRL
+  app.get('/finance/last-6-months', async (request, reply) => {
+    const { currency } = request.query as { currency?: string };
+    return reply.send(await summarize(monthsAgo(6), new Date(), currency));
   });
 
-  // GET /api/admin/finance/last-year
-  app.get('/finance/last-year', async (_req, reply) => {
-    return reply.send(await summarize(monthsAgo(12), new Date()));
+  // GET /api/admin/finance/last-year?currency=BRL
+  app.get('/finance/last-year', async (request, reply) => {
+    const { currency } = request.query as { currency?: string };
+    return reply.send(await summarize(monthsAgo(12), new Date(), currency));
   });
 
-  // GET /api/admin/finance/range?from=2026-01-01&to=2026-06-30 (flexível)
+  // GET /api/admin/finance/range?from=2026-01-01&to=2026-06-30&currency=BRL
   app.get('/finance/range', async (request, reply) => {
-    const { from, to } = request.query as { from?: string; to?: string };
+    const { from, to, currency } = request.query as { from?: string; to?: string; currency?: string };
     if (!from || !to) return reply.code(422).send({ error: 'Parâmetros "from" e "to" são obrigatórios.' });
-    return reply.send(await summarize(new Date(from), new Date(to)));
+    return reply.send(await summarize(new Date(from), new Date(to), currency));
+  });
+
+  // GET /api/admin/finance/evolution?months=12&currency=BRL
+  // Saldo mês a mês — pronto pra alimentar gráfico de linha/barra no dashboard.
+  app.get('/finance/evolution', async (request, reply) => {
+    const { months, currency } = request.query as { months?: string; currency?: string };
+    const n = Math.min(Math.max(Number(months) || 12, 1), 36);
+    return reply.send(await monthlyEvolution(n, currency));
+  });
+
+  // GET /api/admin/finance/club-ranking?from=2026-01-01&to=2026-06-30&currency=BRL
+  // Ranking de clubes parceiros: quem mais comprou/vendeu pro/do seu clube.
+  app.get('/finance/club-ranking', async (request, reply) => {
+    const { from, to, currency } = request.query as { from?: string; to?: string; currency?: string };
+    const fromDate = from ? new Date(from) : monthsAgo(12);
+    const toDate = to ? new Date(to) : new Date();
+    return reply.send(await clubRanking(fromDate, toDate, currency));
+  });
+
+  // GET /api/admin/finance/by-category?from=2026-01-01&to=2026-06-30&currency=BRL
+  // Saldo de transferências separado por categoria (Principal, Sub-20...).
+  app.get('/finance/by-category', async (request, reply) => {
+    const { from, to, currency } = request.query as { from?: string; to?: string; currency?: string };
+    const fromDate = from ? new Date(from) : monthsAgo(12);
+    const toDate = to ? new Date(to) : new Date();
+    return reply.send(await balanceByCategory(fromDate, toDate, currency));
+  });
+
+  // GET /api/admin/finance/comparison?month=2026-06&currency=BRL
+  // Compara o mês informado (ou atual) com o mês imediatamente anterior.
+  app.get('/finance/comparison', async (request, reply) => {
+    const { month, currency } = request.query as { month?: string; currency?: string };
+    const ref = month ? new Date(`${month}-01T00:00:00`) : new Date();
+
+    const { from: currentFrom, to: currentTo } = monthRange(ref);
+    const previousRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1);
+    const { from: previousFrom, to: previousTo } = monthRange(previousRef);
+
+    const [current, previous] = await Promise.all([
+      summarize(currentFrom, currentTo, currency),
+      summarize(previousFrom, previousTo, currency),
+    ]);
+
+    return reply.send({
+      current,
+      previous,
+      variation: {
+        incomePct: pctChange(BigInt(previous.incomeCents), BigInt(current.incomeCents)),
+        expensePct: pctChange(BigInt(previous.expenseCents), BigInt(current.expenseCents)),
+        balancePct: pctChange(BigInt(previous.balanceCents), BigInt(current.balanceCents)),
+      },
+    });
   });
 }
