@@ -1,7 +1,7 @@
 // src/modules/squad/squad.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { createUploadHandler } from '../../shared/plugins/upload.plugin';
 import { deleteImageSafe } from '../../shared/services/cloudinary';
 
@@ -28,7 +28,7 @@ export async function squadPublicRoutes(app: FastifyInstance): Promise<void> {
 }
 
 export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   // GET /api/admin/squad?categoryId=...  — inclui inativos
   app.get('/squad', async (request, reply) => {

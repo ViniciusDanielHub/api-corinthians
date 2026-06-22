@@ -1,7 +1,7 @@
 // src/modules/transfer-clubs/transfer-clubs.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { createUploadHandler } from '../../shared/plugins/upload.plugin';
 import { deleteImageSafe } from '../../shared/services/cloudinary';
 
@@ -16,7 +16,7 @@ export async function transferClubsPublicRoutes(app: FastifyInstance): Promise<v
 }
 
 export async function transferClubsAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   app.get('/transfer-clubs', async (_req, reply) => {
     const clubs = await prisma.transferClub.findMany({ orderBy: { name: 'asc' } });

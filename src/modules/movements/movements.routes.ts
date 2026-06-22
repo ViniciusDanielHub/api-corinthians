@@ -1,7 +1,7 @@
 // src/modules/movements/movements.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import type { MovementType } from '@prisma/client';
 
 // Includes reutilizados para evitar duplicação
@@ -61,8 +61,7 @@ export async function movementsPublicRoutes(app: FastifyInstance): Promise<void>
 // ── Rotas admin ────────────────────────────────────────────────────────────
 
 export async function movementsAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
-
+  app.addHook('preHandler', requireAdminAuth);
   /**
    * GET /api/admin/movements?page=1&limit=20&squadMemberId=<id>
    * Lista paginada de movimentações.

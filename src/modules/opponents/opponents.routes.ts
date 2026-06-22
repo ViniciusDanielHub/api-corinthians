@@ -1,7 +1,7 @@
 // src/modules/opponents/opponents.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { createUploadHandler } from '../../shared/plugins/upload.plugin';
 import { deleteImageSafe } from '../../shared/services/cloudinary';
 
@@ -15,7 +15,7 @@ export async function opponentsPublicRoutes(app: FastifyInstance): Promise<void>
 }
 
 export async function opponentsAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   // POST /api/admin/opponents — multipart/form-data: campos "name" + arquivo "logo"
   app.post('/opponents', { preHandler: [uploadOpponentLogo] }, async (request, reply) => {

@@ -1,7 +1,7 @@
 // src/modules/categories/categories.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import slugify from 'slugify';
 
 function toSlug(name: string): string {
@@ -28,7 +28,7 @@ export async function categoriesPublicRoutes(app: FastifyInstance): Promise<void
 }
 
 export async function categoriesAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   // GET /api/admin/categories — inclui inativas
   app.get('/categories', async (_req, reply) => {

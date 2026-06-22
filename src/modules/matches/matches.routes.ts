@@ -1,7 +1,7 @@
 // src/modules/matches/matches.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 
 const matchInclude = {
   opponent: { select: { id: true, name: true, logoUrl: true } },
@@ -63,7 +63,7 @@ export async function matchesPublicRoutes(app: FastifyInstance): Promise<void> {
 }
 
 export async function matchesAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   app.get('/matches', async (request, reply) => {
     const { page = '1', limit = '20' } = request.query as any;

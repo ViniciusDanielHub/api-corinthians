@@ -1,7 +1,7 @@
 // src/modules/team/team.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { createUploadHandler } from '../../shared/plugins/upload.plugin';
 import { deleteImageSafe } from '../../shared/services/cloudinary';
 
@@ -27,7 +27,7 @@ export async function teamAdminRoutes(app: FastifyInstance): Promise<void> {
   // ficaria SEM autenticação por padrão, bastando o autor esquecer de
   // colar o preHandler manualmente. Usar addHook torna a proteção
   // automática para qualquer rota deste plugin, igual aos demais módulos.
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   // PATCH /api/admin/team — multipart/form-data, campo de arquivo "logo"
   app.patch(

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from 'fastify';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 import { monthsAgo, pctChange } from './finance.helpers';
 import { balanceByCategory, clubRanking, monthlyEvolution, monthRange, summarize } from './finance.service';
 
 export async function financeAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   // GET /api/admin/finance/month?month=2026-06&currency=BRL
   app.get('/finance/month', async (request, reply) => {

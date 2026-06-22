@@ -1,7 +1,7 @@
 // src/modules/standings/standings.routes.ts
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/database/prisma';
-import { requireApiKey } from '../../shared/plugins/api-key.plugin';
+import { requireAdminAuth } from '../../shared/plugins/admin-auth.plugin';
 
 // Adiciona goalDifference calculado (SG) na resposta — não é salvo no
 // banco para não correr risco de ficar "dessincronizado" com GM/GC.
@@ -22,7 +22,7 @@ export async function standingsPublicRoutes(app: FastifyInstance): Promise<void>
 }
 
 export async function standingsAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.addHook('preHandler', requireApiKey);
+  app.addHook('preHandler', requireAdminAuth);
 
   // POST /api/admin/standings — cria/atualiza uma linha (upsert por posição)
   app.post('/standings', async (request, reply) => {
