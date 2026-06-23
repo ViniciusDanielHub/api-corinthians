@@ -144,6 +144,7 @@ model Match {
   @@index([opponentId])
   @@index([date])
   @@index([status, date])
+  @@unique([competitionId, opponentId, date])
   @@map("matches")
 }
 
@@ -255,5 +256,6 @@ model PlayerMovement {
   @@index([type, date])
   @@index([clubId])
   @@index([type, date, valueCents])
+  @@unique([squadMemberId, type, date, clubId])
   @@map("player_movements")
 }

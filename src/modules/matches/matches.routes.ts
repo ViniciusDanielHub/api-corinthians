@@ -140,6 +140,26 @@ export async function matchesAdminRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(422).send({ error: 'Referências inválidas.', details: errors });
     }
 
+    // Evita cadastrar a mesma partida duas vezes (mesma competição,
+    // adversário e data — protegido também por @@unique no schema).
+    const duplicate = await prisma.match.findUnique({
+      where: {
+        competitionId_opponentId_date: {
+          competitionId: body.competitionId,
+          opponentId: body.opponentId,
+          date: new Date(body.date),
+        },
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return reply.code(409).send({
+        error: 'Já existe uma partida cadastrada com essa competição, adversário e data.',
+        conflictId: duplicate.id,
+        hint: 'Use PATCH /api/admin/matches/:id para atualizar a partida existente.',
+      });
+    }
+
     const match = await prisma.match.create({
       data: {
         competitionId: body.competitionId,
@@ -216,6 +236,32 @@ export async function matchesAdminRoutes(app: FastifyInstance): Promise<void> {
     }
     if (refErrors.length > 0) {
       return reply.code(422).send({ error: 'Referências inválidas.', details: refErrors });
+    }
+
+    // Se algum dos três campos da chave de unicidade está sendo alterado,
+    // revalida contra a partida resultante para evitar duplicidade.
+    if (body.competitionId || body.opponentId || body.date) {
+      const current = await prisma.match.findUnique({
+        where: { id },
+        select: { competitionId: true, opponentId: true, date: true },
+      });
+      if (current) {
+        const resultingKey = {
+          competitionId: body.competitionId ?? current.competitionId,
+          opponentId: body.opponentId ?? current.opponentId,
+          date: body.date ? new Date(body.date) : current.date,
+        };
+        const duplicate = await prisma.match.findUnique({
+          where: { competitionId_opponentId_date: resultingKey },
+          select: { id: true },
+        });
+        if (duplicate && duplicate.id !== id) {
+          return reply.code(409).send({
+            error: 'Já existe outra partida cadastrada com essa competição, adversário e data.',
+            conflictId: duplicate.id,
+          });
+        }
+      }
     }
 
     const match = await prisma.match.update({

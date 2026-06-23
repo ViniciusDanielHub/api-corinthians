@@ -161,6 +161,26 @@ export async function movementsAdminRoutes(app: FastifyInstance): Promise<void> 
       }
     }
 
+    // Evita registrar a mesma movimentação duas vezes (ex: duplo clique
+    // no "salvar"). Cobre também o caso clubId nulo, que o @@unique do
+    // banco não bloqueia (NULL nunca colide com NULL no Postgres).
+    const duplicate = await prisma.playerMovement.findFirst({
+      where: {
+        squadMemberId: body.squadMemberId,
+        type: body.type as MovementType,
+        date: new Date(body.date),
+        clubId: body.clubId ?? null,
+      },
+      select: { id: true },
+    });
+    if (duplicate) {
+      return reply.code(409).send({
+        error: 'Já existe uma movimentação igual cadastrada para este jogador (mesmo tipo, data e clube).',
+        conflictId: duplicate.id,
+        hint: 'Se for um caso legítimo de duplicidade (raro), edite a movimentação existente em vez de criar outra.',
+      });
+    }
+
     const movement = await prisma.playerMovement.create({
       data: {
         squadMemberId: body.squadMemberId,

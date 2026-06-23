@@ -92,8 +92,8 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
         });
       }
 
-      // Avisa sobre número de camisa duplicado na mesma categoria (não bloqueia)
-      const warnings: string[] = [];
+      // Bloqueia número de camisa já em uso por outro jogador ativo
+      // na MESMA categoria (times diferentes podem repetir números livremente).
       if (body.shirtNumber !== undefined) {
         const shirtConflict = await prisma.squadMember.findFirst({
           where: {
@@ -104,9 +104,12 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
           select: { id: true, name: true },
         });
         if (shirtConflict) {
-          warnings.push(
-            `O número de camisa ${body.shirtNumber} já está em uso por "${shirtConflict.name}" nesta categoria.`,
-          );
+          return reply.code(409).send({
+            error: `O número de camisa ${body.shirtNumber} já está em uso por "${shirtConflict.name}" nesta categoria.`,
+            field: 'shirtNumber',
+            conflictId: shirtConflict.id,
+            hint: 'Escolha outro número ou desative/atualize o jogador atual antes de reutilizá-lo.',
+          });
         }
       }
 
@@ -134,7 +137,7 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
           birthDate: body.birthDate ? new Date(body.birthDate) : null,
         },
       });
-      return reply.code(201).send(warnings.length > 0 ? { ...player, warnings } : player);
+      return reply.code(201).send(player);
     } catch (err) {
       if (uploadedFile) await deleteImageSafe(uploadedFile.path);
       throw err;
@@ -171,6 +174,39 @@ export async function squadAdminRoutes(app: FastifyInstance): Promise<void> {
             error: 'Data de nascimento inválida. Deve estar entre 1940 e hoje.',
             field: 'birthDate',
           });
+        }
+      }
+
+      // Se o número de camisa está sendo definido/alterado, ou o jogador está
+      // sendo (re)ativado, revalida o conflito dentro da mesma categoria.
+      const willBeActive = body?.isActive !== undefined ? Boolean(body.isActive) : undefined;
+      if (body?.shirtNumber !== undefined && body.shirtNumber !== null || willBeActive === true) {
+        const current = await prisma.squadMember.findUnique({
+          where: { id },
+          select: { categoryId: true, shirtNumber: true, isActive: true },
+        });
+        if (current) {
+          const effectiveShirt = body?.shirtNumber !== undefined ? Number(body.shirtNumber) : current.shirtNumber;
+          const effectiveActive = willBeActive ?? current.isActive;
+
+          if (effectiveShirt !== null && effectiveActive) {
+            const shirtConflict = await prisma.squadMember.findFirst({
+              where: {
+                categoryId: current.categoryId,
+                shirtNumber: effectiveShirt,
+                isActive: true,
+                NOT: { id },
+              },
+              select: { id: true, name: true },
+            });
+            if (shirtConflict) {
+              return reply.code(409).send({
+                error: `O número de camisa ${effectiveShirt} já está em uso por "${shirtConflict.name}" nesta categoria.`,
+                field: 'shirtNumber',
+                conflictId: shirtConflict.id,
+              });
+            }
+          }
         }
       }
 
