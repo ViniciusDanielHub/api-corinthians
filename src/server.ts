@@ -1,4 +1,5 @@
 // src/server.ts
+import './shared/json/bigint-serialization'; // precisa vir antes de qualquer outro import
 import 'dotenv/config';
 import { buildApp } from './app';
 

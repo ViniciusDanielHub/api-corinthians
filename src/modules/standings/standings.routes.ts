@@ -39,10 +39,10 @@ function validateStandingRow(
   ) {
     const sum = Number(row.won) + Number(row.drawn) + Number(row.lost);
     if (sum !== Number(row.played)) {
-      v['errors'].push({
-        field: `${prefix}played`,
-        message: `Inconsistência: vitórias (${row.won}) + empates (${row.drawn}) + derrotas (${row.lost}) = ${sum}, mas jogos = ${row.played}.`,
-      });
+      v.addError(
+        `${prefix}played`,
+        `Inconsistência: vitórias (${row.won}) + empates (${row.drawn}) + derrotas (${row.lost}) = ${sum}, mas jogos = ${row.played}.`,
+      );
     }
   }
 

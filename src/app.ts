@@ -38,7 +38,22 @@ export async function buildApp() {
     origin: process.env.CORS_ORIGIN?.split(',') ?? true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
-  await app.register(multipart);
+
+  if (!process.env.CORS_ORIGIN && process.env.NODE_ENV === 'production') {
+    app.log.warn(
+      'CORS_ORIGIN não definida em produção — a API está aceitando requisições de QUALQUER origem. ' +
+      'Defina CORS_ORIGIN no .env com os domínios autorizados, separados por vírgula.',
+    );
+  }
+  await app.register(multipart, {
+    limits: {
+      fieldNameSize: 100,   // tamanho máx. do nome de cada campo de texto
+      fieldSize: 10_000,    // tamanho máx. de cada campo de texto (bytes)
+      fields: 30,           // número máx. de campos de texto no formulário
+      files: 1,             // só fazemos upload de 1 imagem por requisição
+      // fileSize fica por conta do MAX_SIZE_BYTES em upload.plugin.ts
+    },
+  });
   await app.register(rateLimit, {
     max: Number(process.env.RATE_LIMIT_MAX) || 200,
     timeWindow: '1 minute',
@@ -47,25 +62,32 @@ export async function buildApp() {
   // ── Health check ───────────────────────────────────────────────────────────
   app.get('/api/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
 
+  if (!process.env.JWT_SECRET?.trim()) {
+    app.log.warn(
+      'JWT_SECRET não definida — TODAS as rotas /api/admin/* vão retornar 503 até que ' +
+      'essa variável seja configurada no .env (deve ser o mesmo segredo usado pelo sports-news-api).',
+    );
+  }
+
   // ── Rotas públicas (leitura, sem autenticação) ────────────────────────────
-  await app.register(teamPublicRoutes,        { prefix: '/api' });
-  await app.register(categoriesPublicRoutes,  { prefix: '/api' });
-  await app.register(competitionsPublicRoutes,{ prefix: '/api' });
-  await app.register(opponentsPublicRoutes,   { prefix: '/api' });
-  await app.register(matchesPublicRoutes,     { prefix: '/api' });
-  await app.register(standingsPublicRoutes,   { prefix: '/api' });
-  await app.register(squadPublicRoutes,       { prefix: '/api' });
-  await app.register(movementsPublicRoutes,   { prefix: '/api' });
+  await app.register(teamPublicRoutes, { prefix: '/api' });
+  await app.register(categoriesPublicRoutes, { prefix: '/api' });
+  await app.register(competitionsPublicRoutes, { prefix: '/api' });
+  await app.register(opponentsPublicRoutes, { prefix: '/api' });
+  await app.register(matchesPublicRoutes, { prefix: '/api' });
+  await app.register(standingsPublicRoutes, { prefix: '/api' });
+  await app.register(squadPublicRoutes, { prefix: '/api' });
+  await app.register(movementsPublicRoutes, { prefix: '/api' });
 
   // ── Rotas admin (escrita, exigem x-api-key) ───────────────────────────────
-  await app.register(teamAdminRoutes,         { prefix: '/api/admin' });
-  await app.register(categoriesAdminRoutes,   { prefix: '/api/admin' });
+  await app.register(teamAdminRoutes, { prefix: '/api/admin' });
+  await app.register(categoriesAdminRoutes, { prefix: '/api/admin' });
   await app.register(competitionsAdminRoutes, { prefix: '/api/admin' });
-  await app.register(opponentsAdminRoutes,    { prefix: '/api/admin' });
-  await app.register(matchesAdminRoutes,      { prefix: '/api/admin' });
-  await app.register(standingsAdminRoutes,    { prefix: '/api/admin' });
-  await app.register(squadAdminRoutes,        { prefix: '/api/admin' });
-  await app.register(movementsAdminRoutes,    { prefix: '/api/admin' });
+  await app.register(opponentsAdminRoutes, { prefix: '/api/admin' });
+  await app.register(matchesAdminRoutes, { prefix: '/api/admin' });
+  await app.register(standingsAdminRoutes, { prefix: '/api/admin' });
+  await app.register(squadAdminRoutes, { prefix: '/api/admin' });
+  await app.register(movementsAdminRoutes, { prefix: '/api/admin' });
   await app.register(transferClubsPublicRoutes, { prefix: '/api' });
   await app.register(transferClubsAdminRoutes, { prefix: '/api/admin' });
   await app.register(financeAdminRoutes, { prefix: '/api/admin' });

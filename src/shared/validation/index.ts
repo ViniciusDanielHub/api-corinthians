@@ -300,6 +300,16 @@ export class Validator {
     return this;
   }
 
+  /**
+   * Adiciona um erro customizado ao validador — use quando a regra de
+   * negócio não se encaixa em nenhum dos helpers acima (ex: validações
+   * cruzadas entre campos, formatos muito específicos).
+   */
+  addError(field: string, message: string, received?: unknown): this {
+    this.errors.push({ field, message, received });
+    return this;
+  }
+
   /** Lança ValidationException se houver erros acumulados */
   throw(): void {
     if (this.errors.length > 0) {

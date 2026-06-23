@@ -12,17 +12,13 @@ function parseMonthParam(month: unknown): Date {
   const str = String(month).trim();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(str)) {
     const v = new Validator();
-    v['errors'].push({
-      field: 'month',
-      message: 'O parâmetro "month" deve estar no formato YYYY-MM (ex: 2026-06).',
-      received: str,
-    });
+    v.addError('month', 'O parâmetro "month" deve estar no formato YYYY-MM (ex: 2026-06).', str);
     v.throw();
   }
   const d = new Date(`${str}-01T00:00:00`);
   if (isNaN(d.getTime())) {
     const v = new Validator();
-    v['errors'].push({ field: 'month', message: `Mês inválido: "${str}".` });
+    v.addError('month', `Mês inválido: "${str}".`);
     v.throw();
   }
   return d;
@@ -34,11 +30,7 @@ function parseMonthsParam(months: unknown, defaultN = 12): number {
   const n = Number(months);
   if (!Number.isInteger(n) || n < 1 || n > 36) {
     const v = new Validator();
-    v['errors'].push({
-      field: 'months',
-      message: 'O parâmetro "months" deve ser um inteiro entre 1 e 36.',
-      received: months,
-    });
+    v.addError('months', 'O parâmetro "months" deve ser um inteiro entre 1 e 36.', months);
     v.throw();
   }
   return n;
@@ -105,8 +97,24 @@ export async function financeAdminRoutes(app: FastifyInstance): Promise<void> {
     const { from, to, currency } = request.query as { from?: string; to?: string; currency?: string };
 
     if (currency) new Validator().currencyCode('currency', currency).throw();
+
+    if (from || to) {
+      // Se um dos dois foi informado, ambos precisam ser datas ISO válidas
+      new Validator()
+        .isoDate('from', from, 'data inicial')
+        .isoDate('to', to, 'data final')
+        .throw();
+    }
+
     const fromDate = from ? new Date(from) : monthsAgo(12);
     const toDate = to ? new Date(to) : new Date();
+
+    if (fromDate > toDate) {
+      new Validator()
+        .addError('from', `"from" (${from}) não pode ser posterior a "to" (${to}).`)
+        .throw();
+    }
+
     return reply.send(await balanceByCategory(fromDate, toDate, currency));
   });
 
@@ -136,4 +144,4 @@ export async function financeAdminRoutes(app: FastifyInstance): Promise<void> {
       },
     });
   });
-} 
+}

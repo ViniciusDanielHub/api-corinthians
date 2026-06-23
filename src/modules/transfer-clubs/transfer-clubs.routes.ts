@@ -28,17 +28,22 @@ export async function transferClubsAdminRoutes(app: FastifyInstance): Promise<vo
     const body = request.body as any;
     const uploadedFile = (request as any).uploadedFile as { path: string } | undefined;
 
-    new Validator()
-      .required('name', body?.name, 'nome do clube')
-      .string('name', body?.name, { min: 2, max: 100, label: 'nome do clube' })
-      .throw();
+    try {
+      new Validator()
+        .required('name', body?.name, 'nome do clube')
+        .string('name', body?.name, { min: 2, max: 100, label: 'nome do clube' })
+        .throw();
 
-    const club = await prisma.transferClub.upsert({
-      where: { name: body.name.trim() },
-      update: { ...(uploadedFile && { logoUrl: uploadedFile.path }) },
-      create: { name: body.name.trim(), logoUrl: uploadedFile?.path ?? null },
-    });
-    return reply.code(201).send(club);
+      const club = await prisma.transferClub.upsert({
+        where: { name: body.name.trim() },
+        update: { ...(uploadedFile && { logoUrl: uploadedFile.path }) },
+        create: { name: body.name.trim(), logoUrl: uploadedFile?.path ?? null },
+      });
+      return reply.code(201).send(club);
+    } catch (err) {
+      if (uploadedFile) await deleteImageSafe(uploadedFile.path);
+      throw err;
+    }
   });
 
   app.patch('/transfer-clubs/:id', { preHandler: [uploadTransferClubLogo] }, async (request, reply) => {
@@ -54,35 +59,40 @@ export async function transferClubsAdminRoutes(app: FastifyInstance): Promise<vo
       });
     }
 
-    if (body?.name) {
-      new Validator()
-        .string('name', body.name, { min: 2, max: 100, label: 'nome do clube' })
-        .throw();
+    try {
+      if (body?.name) {
+        new Validator()
+          .string('name', body.name, { min: 2, max: 100, label: 'nome do clube' })
+          .throw();
 
-      const conflict = await prisma.transferClub.findFirst({
-        where: { name: body.name.trim(), NOT: { id } },
-      });
-      if (conflict) {
-        return reply.code(409).send({
-          error: `Já existe um clube com o nome "${body.name.trim()}".`,
-          conflictId: conflict.id,
+        const conflict = await prisma.transferClub.findFirst({
+          where: { name: body.name.trim(), NOT: { id } },
         });
+        if (conflict) {
+          return reply.code(409).send({
+            error: `Já existe um clube com o nome "${body.name.trim()}".`,
+            conflictId: conflict.id,
+          });
+        }
       }
-    }
 
-    if (uploadedFile) {
-      const existing = await prisma.transferClub.findUnique({ where: { id } });
-      if (existing?.logoUrl) await deleteImageSafe(existing.logoUrl);
-    }
+      if (uploadedFile) {
+        const existing = await prisma.transferClub.findUnique({ where: { id } });
+        if (existing?.logoUrl) await deleteImageSafe(existing.logoUrl);
+      }
 
-    const club = await prisma.transferClub.update({
-      where: { id },
-      data: {
-        ...(body?.name && { name: body.name.trim() }),
-        ...(uploadedFile && { logoUrl: uploadedFile.path }),
-      },
-    });
-    return reply.send(club);
+      const club = await prisma.transferClub.update({
+        where: { id },
+        data: {
+          ...(body?.name && { name: body.name.trim() }),
+          ...(uploadedFile && { logoUrl: uploadedFile.path }),
+        },
+      });
+      return reply.send(club);
+    } catch (err) {
+      if (uploadedFile) await deleteImageSafe(uploadedFile.path);
+      throw err;
+    }
   });
 
   app.delete('/transfer-clubs/:id', async (request, reply) => {

@@ -190,6 +190,34 @@ export async function matchesAdminRoutes(app: FastifyInstance): Promise<void> {
       }
     }
 
+    // Verifica existência de competição/adversário se estiverem sendo trocados
+    // (mesma checagem feita no POST — sem isso, o erro só apareceria como uma
+    // violação de FK genérica do Prisma em vez de uma mensagem clara)
+    const refErrors: { field: string; message: string; hint?: string }[] = [];
+    if (body.competitionId) {
+      const competition = await prisma.competition.findUnique({ where: { id: body.competitionId } });
+      if (!competition) {
+        refErrors.push({
+          field: 'competitionId',
+          message: `Competição com ID "${body.competitionId}" não encontrada.`,
+          hint: 'Use GET /api/admin/competitions para listar as competições.',
+        });
+      }
+    }
+    if (body.opponentId) {
+      const opponent = await prisma.opponent.findUnique({ where: { id: body.opponentId } });
+      if (!opponent) {
+        refErrors.push({
+          field: 'opponentId',
+          message: `Adversário com ID "${body.opponentId}" não encontrado.`,
+          hint: 'Use GET /api/admin/opponents para listar os adversários.',
+        });
+      }
+    }
+    if (refErrors.length > 0) {
+      return reply.code(422).send({ error: 'Referências inválidas.', details: refErrors });
+    }
+
     const match = await prisma.match.update({
       where: { id },
       data: {

@@ -23,17 +23,22 @@ export async function opponentsAdminRoutes(app: FastifyInstance): Promise<void> 
     const body = request.body as any;
     const uploadedFile = (request as any).uploadedFile as { path: string } | undefined;
 
-    new Validator()
-      .required('name', body?.name, 'nome do adversário')
-      .string('name', body?.name, { min: 2, max: 100, label: 'nome do adversário' })
-      .throw();
+    try {
+      new Validator()
+        .required('name', body?.name, 'nome do adversário')
+        .string('name', body?.name, { min: 2, max: 100, label: 'nome do adversário' })
+        .throw();
 
-    const opponent = await prisma.opponent.upsert({
-      where: { name: body.name.trim() },
-      update: { ...(uploadedFile && { logoUrl: uploadedFile.path }) },
-      create: { name: body.name.trim(), logoUrl: uploadedFile?.path ?? null },
-    });
-    return reply.code(201).send(opponent);
+      const opponent = await prisma.opponent.upsert({
+        where: { name: body.name.trim() },
+        update: { ...(uploadedFile && { logoUrl: uploadedFile.path }) },
+        create: { name: body.name.trim(), logoUrl: uploadedFile?.path ?? null },
+      });
+      return reply.code(201).send(opponent);
+    } catch (err) {
+      if (uploadedFile) await deleteImageSafe(uploadedFile.path);
+      throw err;
+    }
   });
 
   app.patch('/opponents/:id', { preHandler: [uploadOpponentLogo] }, async (request, reply) => {
@@ -49,36 +54,41 @@ export async function opponentsAdminRoutes(app: FastifyInstance): Promise<void> 
       });
     }
 
-    if (body?.name) {
-      new Validator()
-        .string('name', body.name, { min: 2, max: 100, label: 'nome do adversário' })
-        .throw();
+    try {
+      if (body?.name) {
+        new Validator()
+          .string('name', body.name, { min: 2, max: 100, label: 'nome do adversário' })
+          .throw();
 
-      // Verifica conflito de nome com outro adversário
-      const conflict = await prisma.opponent.findFirst({
-        where: { name: body.name.trim(), NOT: { id } },
-      });
-      if (conflict) {
-        return reply.code(409).send({
-          error: `Já existe um adversário com o nome "${body.name.trim()}".`,
-          conflictId: conflict.id,
+        // Verifica conflito de nome com outro adversário
+        const conflict = await prisma.opponent.findFirst({
+          where: { name: body.name.trim(), NOT: { id } },
         });
+        if (conflict) {
+          return reply.code(409).send({
+            error: `Já existe um adversário com o nome "${body.name.trim()}".`,
+            conflictId: conflict.id,
+          });
+        }
       }
-    }
 
-    if (uploadedFile) {
-      const existing = await prisma.opponent.findUnique({ where: { id } });
-      if (existing?.logoUrl) await deleteImageSafe(existing.logoUrl);
-    }
+      if (uploadedFile) {
+        const existing = await prisma.opponent.findUnique({ where: { id } });
+        if (existing?.logoUrl) await deleteImageSafe(existing.logoUrl);
+      }
 
-    const opponent = await prisma.opponent.update({
-      where: { id },
-      data: {
-        ...(body?.name && { name: body.name.trim() }),
-        ...(uploadedFile && { logoUrl: uploadedFile.path }),
-      },
-    });
-    return reply.send(opponent);
+      const opponent = await prisma.opponent.update({
+        where: { id },
+        data: {
+          ...(body?.name && { name: body.name.trim() }),
+          ...(uploadedFile && { logoUrl: uploadedFile.path }),
+        },
+      });
+      return reply.send(opponent);
+    } catch (err) {
+      if (uploadedFile) await deleteImageSafe(uploadedFile.path);
+      throw err;
+    }
   });
 
   app.delete('/opponents/:id', async (request, reply) => {
